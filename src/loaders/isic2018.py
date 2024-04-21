@@ -43,8 +43,7 @@ def get_isic(config, logger=None, verbose=False):
         msk_transform=DT.get_forward_transform_msk(),
         add_boundary_mask=config["dataset"]["add_boundary_mask"],
         add_boundary_dist=config["dataset"]["add_boundary_dist"],
-        logger=logger,
-        data_scale=config["dataset"]["data_scale"]
+        gt_format=config["dataset"]["gt_format"]
     )
 
     tr_dataloader = DataLoader(train_dataset, **config["data_loader"]["train"])

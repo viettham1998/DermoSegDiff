@@ -3,6 +3,7 @@ import glob
 import torch
 import numpy as np
 from models import *
+import csv
 
 from utils.helper_funcs import (
     load_config,
@@ -29,8 +30,8 @@ import sys, os
 from metrics import get_binary_metrics
 from loaders.dataloaders import get_dataloaders
 import warnings
-warnings.filterwarnings("ignore")
 
+warnings.filterwarnings("ignore")
 
 # ------------------- params --------------------
 argparser = get_argparser()
@@ -44,12 +45,11 @@ logger = get_logger(
 )
 print_config(config, logger)
 
-
 jet = plt.get_cmap("jet")
 
 
 def write_imgs(
-    imgs, msks, prds, mid_prds, step, id, dataset, ids=None
+        imgs, msks, prds, mid_prds, step, id, dataset, ids=None
 ):
     imgs = (imgs - imgs.min()) / (imgs.max() - imgs.min())
     img_grid = torchvision.utils.make_grid(imgs)
@@ -105,12 +105,10 @@ logger.info(f"Device is <{device}>")
 Path(config["model"]["save_dir"]).mkdir(exist_ok=True)
 if config["testing"]["result_imgs"]["save"]:
     try:
-        Path(config["testing"]["result_imgs"]["dir"] + "/" + ID).mkdir()
+        Path(config["testing"]["result_imgs"]["dir"] + "/" + ID).mkdir(parents=True)
     except FileExistsError:
         shutil.rmtree(Path(config["testing"]["result_imgs"]["dir"] + "/" + ID))
         Path(config["testing"]["result_imgs"]["dir"] + "/" + ID).mkdir()
-
-
 
 forward_schedule = ForwardSchedule(**config["diffusion"]["schedule"])
 DT = DiffusionTransform((INPUT_SIZE, INPUT_SIZE))
@@ -118,15 +116,14 @@ DT = DiffusionTransform((INPUT_SIZE, INPUT_SIZE))
 # --------------- Datasets and Dataloaders -----------------
 te_dataloader = get_dataloaders(config, "vl")
 
-
 Net = globals()[config["model"]["class"]]
 model = Net(**config["model"]["params"])
 model.to(device)
 
-
 # ------------------------ EMA -------------------------------
 # https://github.com/lucidrains/ema-pytorch
 from ema_pytorch import EMA
+
 try:
     if config["training"]["ema"]["use"]:
         ema = EMA(model=model, **config["training"]["ema"]["params"])
@@ -138,7 +135,7 @@ except KeyError:
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 
-if config["testing"]["model_weigths"]["overload"]: 
+if config["testing"]["model_weigths"]["overload"]:
     logger.info(f"trying to load the desired model:")
     best_model_path = config["testing"]["model_weigths"]["file_path"]
 else:
@@ -168,18 +165,17 @@ total_params = sum(p.numel() for p in model.parameters())
 logger.info(f"Number of model parameters: {total_params}")
 model.eval()
 
-
 test_metrics = get_binary_metrics()
 
 for step, batch in tqdm(
-    enumerate(te_dataloader),
-    desc=f"Testing {config['model']['name']}",
-    total=len(te_dataloader),
+        enumerate(te_dataloader),
+        desc=f"Testing {config['model']['name']}",
+        total=len(te_dataloader),
 ):
     batch_imgs = batch["image"].to(device)
     batch_msks = batch["mask"].to(device)
     batch_ids = batch["id"]
-    origin_image_name = batch["origin_image_name"]
+    origin_image_names = batch["origin_image_name"]
 
     samples_list, mid_samples_list = [], []
     all_samples_list = []
@@ -189,7 +185,7 @@ for step, batch in tqdm(
             model,
             images=batch_imgs,
             out_channels=batch_msks.shape[1],
-            desc=f"ensemble {en+1}/{ensemble}",
+            desc=f"ensemble {en + 1}/{ensemble}",
         )
         samples_list.append(samples[-1][:, :1, :, :].to(device))
         mid_samples_list.append(
@@ -234,9 +230,36 @@ for step, batch in tqdm(
             result_id=f"{ID}_BV_E{ensemble}",
             img_ext="png",
             save_mat=True,
+            batch_file_names=origin_image_names,
         )
 
 result = test_metrics.compute()
+
+path_csv = os.path.join(config["testing"]["result_imgs"]["dir"], 'result.csv')
+first_create = os.path.exists(path_csv)
+
+with open(os.path.join(config["testing"]["result_imgs"]["dir"], 'result.csv'), 'a', encoding='utf-8', newline='') as f:
+    wr = csv.writer(f)
+
+    wr.writerow([
+        'Model',
+        'Miou(Jaccard Similarity)', 'F1_score', 'Accuracy', 'Specificity',
+        'Sensitivity', 'DSC', 'AP', 'AUC',
+        'Precision',
+        'LR', 'Best Epoch', 'Total Epoch',
+        'Decay Epoch', 'Augmentation Prob'
+    ])
+    wr.writerow(
+        [
+            'DermoSegDiff',
+            result['metrics/BinaryJaccardIndex'].item() * 100, result['metrics/BinaryF1Score'].item() * 100, result['metrics/BinaryAccuracy'].item() * 100,
+            result['metrics/BinarySpecificity'].item() * 100,
+            result['metrics/BinaryRecall'].item() * 100, result['metrics/Dice'].item() * 100, result['metrics/BinaryAveragePrecision'].item() * 100,
+            result['metrics/BinaryAUROC'].item() * 100,
+            result['metrics/BinaryPrecision'].item() * 100
+        ]
+    )
+
 writer.add_scalars(
     f"Metrics/test-s{INPUT_SIZE}/{ID}_BV_E{ensemble}",
     result,

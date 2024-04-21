@@ -1,5 +1,5 @@
 run:
-  device: 'gpu'
+  device: 'cuda'
   save_imgs: "saved_imgs"
   writer_dir: "/root/tf-logs/2016" # tensorboard runs
   continue_training: false # whether to continue the training from the last epoch it was saved
@@ -56,7 +56,7 @@ data_loader:
     pin_memory: false
 
 training:
-  epochs: 500
+  epochs: 250
   intial_weights:
     use: false
     file_path: "path/to/file"
@@ -141,10 +141,10 @@ augmentation:
             p: 0.05
         Spatter:
             mean: 0
-            std: 60
+            std: 0.6
             gauss_sigma: 2
-            cutout_threshold: 5
-            intensity: -3
+            cutout_threshold: 0.05
+            intensity: 0
             p: 0.05
         UnsharpMask:
             p: 0.05

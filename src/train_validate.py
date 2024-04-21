@@ -4,6 +4,8 @@ from tqdm import tqdm
 
 from loss import p_losses
 from evaluator import BinaryFilterEvaluator
+from metrics import get_binary_metrics
+
 
 def get_print():
     try:
@@ -31,14 +33,11 @@ def train(
     if ema: model=ema.model
     model.train()
     losses = []
-    evaluator = BinaryFilterEvaluator(
-        epoch, total_epoch, "train"
-    )
     for step, batch in tqdm(
         iterable=enumerate(dataloader),
         desc=f"Epoch {epoch} Training",
+        total=len(dataloader),
     ):
-
         optimizer.zero_grad()
 
         batch_size = batch["image"].shape[0]
@@ -55,11 +54,9 @@ def train(
             x_start=batch_msks,
             g=batch_imgs,
             t=t,
-            cfg=cfg,
-            evaluator=evaluator
+            cfg=cfg
         )
         losses.append((loss.item(), losses_dict, batch_size))
-        evaluator.epoch_loss += loss.item()
 
         loss.backward()
         optimizer.step()
@@ -92,12 +89,11 @@ def train(
                     f"tr-losses > {extra_tr_losses_txt}"
                 )
 
-                if logger:
-                    logger.info(", ".join(txt_items))
-                else:
-                    print(", ".join(txt_items))
-
-    return losses, model, evaluator
+                # if logger:
+                #     logger.info(", ".join(txt_items))
+                # else:
+                #     print(", ".join(txt_items))
+    return losses, model
 
 
 @torch.no_grad()
@@ -107,14 +103,13 @@ def validate(
         forward_process,
         device,
         cfg,
+        vl_runs=3,
         epoch=None,
         total_epoch=None,
+        logger=None,
 ):
     losses = []
     model.eval()
-    evaluator = BinaryFilterEvaluator(
-        epoch, total_epoch, "validation"
-    )
     for step, batch in enumerate(dataloader):
 
         batch_size = batch["image"].shape[0]
@@ -131,11 +126,9 @@ def validate(
             x_start=batch_msks,
             g=batch_imgs,
             t=t,
-            cfg=cfg,
-            evaluator=evaluator
+            cfg=cfg
         )
         _vl_losses.append((loss.item(), losses_dict))
-        evaluator.epoch_loss += loss.item()
 
         _vl_avg_loss = np.mean([l[0] for l in _vl_losses])
         _vl_avg_losses_dict = {}
@@ -145,4 +138,4 @@ def validate(
 
         losses.append((_vl_avg_loss, _vl_avg_losses_dict, batch_size))
 
-    return losses, evaluator
+    return losses

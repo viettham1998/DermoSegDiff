@@ -2,8 +2,7 @@ from os.path import join
 
 from torch.utils.data import DataLoader
 
-from image_loader import ImageLoader
-from image_loader import calculate_image
+from .image_loader import ImageLoader
 
 
 def get_path(root: str, name: str) -> (str, str):
@@ -26,7 +25,7 @@ class ISICImageLoader(ImageLoader):
             add_boundary_mask=False,
             add_boundary_dist=False,
             support_types: [str] = None,
-            gt_format: str = "{}.png"
+            gt_format: str = "{}.png",
     ):
         assert mode == 'train' or mode == 'valid', "Mode must be one of ['train', 'valid']"
         name = 'train' if mode == 'train' else 'val'
@@ -44,7 +43,6 @@ class ISICImageLoader(ImageLoader):
             add_boundary_mask=add_boundary_mask,
             add_boundary_dist=add_boundary_dist,
             support_types=support_types
-
         )
 
     def get_gt_file_name(self, origin_image_name: str, extension: str) -> str:

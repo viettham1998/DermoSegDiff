@@ -477,12 +477,16 @@ def save_sampling_results_as_imgs(
     dataset_name=None,
     result_id=None,
     img_ext="png",
-    save_mat=False
+    save_mat=False,
+    batch_file_names=None
 ):
     save_directory =  "/".join([d for d in [save_dir, dataset_name, result_id] if d])
     
     # check dir
     Path(save_directory).mkdir(exist_ok=True, parents=True)
+
+    if batch_file_names is not None:
+        batch_ids = batch_file_names
 
     for im, gt, id, pd in zip(batch_imgs, batch_msks, batch_ids, batch_prds):
         sd = f"{save_directory}/{id}"
