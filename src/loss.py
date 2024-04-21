@@ -38,6 +38,7 @@ def p_losses(
     t,
     cfg,
     noise=None,
+    evaluator=None
 ):
     global calc_boundary
     logger = get_logger()
@@ -61,7 +62,10 @@ def p_losses(
         predicted_noise = denoise_model(x=x_noisy, time=t, x_self_cond=g)
     else:
         logger.exception('given <denoise_model> is unknown!')
-    
+
+    if evaluator is not None:
+        evaluator.evaluate(predicted_noise, g, 1, 0)
+
     if x_noisy.isnan().any().item() or g.isnan().any().item() or predicted_noise.isnan().any().item():
         print(f"\n\nx: {x_noisy.isnan().any().item()}, g: {g.isnan().any().item()}, preds: {predicted_noise.isnan().any().item()}\n\n")
         

@@ -15,8 +15,7 @@ from utils.helper_funcs import (
     normalize
 )
 
-
-np_normalize = lambda x: (x-x.min())/(x.max()-x.min())
+np_normalize = lambda x: (x - x.min()) / (x.max() - x.min())
 
 
 class ISIC2018DatasetFast(Dataset):
@@ -34,8 +33,8 @@ class ISIC2018DatasetFast(Dataset):
                  add_boundary_dist=False,
                  logger=None,
                  **kwargs):
-        self.print=logger.info if logger else print
-        
+        self.print = logger.info if logger else print
+
         # pre-set variables
         self.data_dir = data_dir if data_dir else "/path/to/datasets/ISIC2018"
 
@@ -52,7 +51,6 @@ class ISIC2018DatasetFast(Dataset):
         self.add_boundary_mask = add_boundary_mask
         self.add_boundary_dist = add_boundary_dist
 
-
         data_preparer = PrepareISIC2018(
             data_dir=self.data_dir, image_size=self.image_size, logger=logger
         )
@@ -64,16 +62,17 @@ class ISIC2018DatasetFast(Dataset):
 
         if kwargs.get('data_scale', 'full') == 'full':
             tr_length, vl_length = 1815, 259
-            
+
         elif kwargs.get('data_scale') == 'medium':
-            tr_length, vl_length = 1815//2, 259
+            tr_length, vl_length = 1815 // 2, 259
         elif kwargs.get('data_scale') == 'lite':
-            tr_length, vl_length = 1815//5, 259
+            tr_length, vl_length = 1815 // 5, 259
         elif kwargs.get('data_scale') == 'ultra-lite':
-            tr_length, vl_length = 1815//10, 259
+            tr_length, vl_length = 1815 // 10, 259
         else:
-            raise ValueError(f"the value of <data_scale> param ({kwargs.get('data_scale')}) is dataset is invalid. valid in (full, medium, lite, ultra-lite)")
-          
+            raise ValueError(
+                f"the value of <data_scale> param ({kwargs.get('data_scale')}) is dataset is invalid. valid in (full, medium, lite, ultra-lite)")
+
         if mode == "tr":
             self.imgs = X[:tr_length]
             self.msks = Y[:tr_length]
@@ -81,12 +80,13 @@ class ISIC2018DatasetFast(Dataset):
             self.imgs = X[1815:1815 + vl_length]
             self.msks = Y[1815:1815 + vl_length]
         elif mode == "te":
-            self.imgs = X[1815 + vl_length :]
-            self.msks = Y[1815 + vl_length :]
+            self.imgs = X[1815 + vl_length:]
+            self.msks = Y[1815 + vl_length:]
         else:
-            raise ValueError()  
-        
-    #    if mode == "tr":
+            raise ValueError()
+
+            #    if mode == "tr":
+
     #         self.imgs = X[0:1815]
     #         self.msks = Y[0:1815]
     #     elif mode == "vl":
@@ -113,14 +113,14 @@ class ISIC2018DatasetFast(Dataset):
 
         if self.aug:
             if self.mode == "tr":
-                img_ = np.uint8(torch.moveaxis(img*255, 0, -1).detach().numpy())
-                msk_ = np.uint8(torch.moveaxis(msk*255, 0, -1).detach().numpy())
+                img_ = np.uint8(torch.moveaxis(img * 255, 0, -1).detach().numpy())
+                msk_ = np.uint8(torch.moveaxis(msk * 255, 0, -1).detach().numpy())
                 augmented = self.aug(image=img_, mask=msk_)
                 img = torch.moveaxis(torch.tensor(augmented['image'], dtype=torch.float32), -1, 0)
                 msk = torch.moveaxis(torch.tensor(augmented['mask'], dtype=torch.float32), -1, 0)
-            elif self.aug_empty: # "tr", "vl", "te"
-                img_ = np.uint8(torch.moveaxis(img*255, 0, -1).detach().numpy())
-                msk_ = np.uint8(torch.moveaxis(msk*255, 0, -1).detach().numpy())
+            elif self.aug_empty:  # "tr", "vl", "te"
+                img_ = np.uint8(torch.moveaxis(img * 255, 0, -1).detach().numpy())
+                msk_ = np.uint8(torch.moveaxis(msk * 255, 0, -1).detach().numpy())
                 augmented = self.aug_empty(image=img_, mask=msk_)
                 img = torch.moveaxis(torch.tensor(augmented['image'], dtype=torch.float32), -1, 0)
                 msk = torch.moveaxis(torch.tensor(augmented['mask'], dtype=torch.float32), -1, 0)
@@ -128,10 +128,10 @@ class ISIC2018DatasetFast(Dataset):
             img = normalize(img)
             msk = msk.nan_to_num(0)
             msk = normalize(msk)
-        
+
         if self.add_boundary_mask or self.add_boundary_dist:
-            msk_ = np.uint8(torch.moveaxis(msk*255, 0, -1).detach().numpy())
-                
+            msk_ = np.uint8(torch.moveaxis(msk * 255, 0, -1).detach().numpy())
+
         if self.add_boundary_mask:
             boundary_mask = calc_edge(msk_, mode='canny')
             # boundary_mask = np_normalize(boundary_mask)
@@ -140,11 +140,11 @@ class ISIC2018DatasetFast(Dataset):
         if self.add_boundary_dist:
             boundary_mask = boundary_mask if self.add_boundary_mask else calc_edge(msk_, mode='canny')
             distance_map = calc_distance_map(boundary_mask, mode='l2')
-            distance_map = distance_map/(self.image_size*1.4142)
+            distance_map = distance_map / (self.image_size * 1.4142)
             distance_map = np.clip(distance_map, a_min=0, a_max=0.2)
-            distance_map = (1-np_normalize(distance_map))*255 
+            distance_map = (1 - np_normalize(distance_map)) * 255
             msk = torch.concatenate([msk, torch.tensor(distance_map).unsqueeze(0)], dim=0)
-        
+
         if self.img_transform:
             img = self.img_transform(img)
         if self.msk_transform:
@@ -152,7 +152,7 @@ class ISIC2018DatasetFast(Dataset):
 
         img = img.nan_to_num(0.5)
         msk = msk.nan_to_num(-1)
-        
+
         sample = {"image": img, "mask": msk, "id": data_id}
         return sample
 
@@ -160,7 +160,7 @@ class ISIC2018DatasetFast(Dataset):
 class PrepareISIC2018:
     def __init__(self, data_dir, image_size, logger=None):
         self.print = logger.info if logger else print
-        
+
         self.data_dir = data_dir
         self.image_size = image_size
         # preparing input info.

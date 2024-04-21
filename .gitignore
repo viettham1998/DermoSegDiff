@@ -138,3 +138,4 @@ saved_models
 *.png
 
 **_mac*.yaml
+.idea

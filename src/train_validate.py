@@ -1,8 +1,9 @@
 import torch
 import numpy as np
+from tqdm import tqdm
+
 from loss import p_losses
-
-
+from evaluator import BinaryFilterEvaluator
 
 def get_print():
     try:
@@ -15,20 +16,28 @@ def get_print():
 
 
 def train(
-    model,
-    dataloader,
-    forward_process,
-    device,
-    optimizer,
-    cfg,
-    ema=None,
-    extra={"skip_steps": 10, "prefix": None},
-    logger=None
+        model,
+        dataloader,
+        forward_process,
+        device,
+        optimizer,
+        cfg,
+        ema=None,
+        extra={"skip_steps": 10, "prefix": None},
+        logger=None,
+        epoch=None,
+        total_epoch=None,
 ):
     if ema: model=ema.model
     model.train()
     losses = []
-    for step, batch in enumerate(dataloader):
+    evaluator = BinaryFilterEvaluator(
+        epoch, total_epoch, "train"
+    )
+    for step, batch in tqdm(
+        iterable=enumerate(dataloader),
+        desc=f"Epoch {epoch} Training",
+    ):
 
         optimizer.zero_grad()
 
@@ -46,9 +55,11 @@ def train(
             x_start=batch_msks,
             g=batch_imgs,
             t=t,
-            cfg=cfg
+            cfg=cfg,
+            evaluator=evaluator
         )
         losses.append((loss.item(), losses_dict, batch_size))
+        evaluator.epoch_loss += loss.item()
 
         loss.backward()
         optimizer.step()
@@ -75,60 +86,63 @@ def train(
 
                 # loss_avg = np.sum([l[0] for l in losses]) / tr_x_total
                 prefix = extra.get("prefix", None)
-                txt_items = ([prefix,] if prefix else [])
+                txt_items = ([prefix, ] if prefix else [])
                 txt_items.append(f"step:{step:03d}/{len(dataloader)}")
                 txt_items.append(
                     f"tr-losses > {extra_tr_losses_txt}"
                 )
-                
+
                 if logger:
                     logger.info(", ".join(txt_items))
                 else:
                     print(", ".join(txt_items))
 
-    return losses, model
+    return losses, model, evaluator
 
 
 @torch.no_grad()
 def validate(
-    model,
-    dataloader,
-    forward_process,
-    device,
-    cfg,
-    vl_runs=3,
-    logger=None
+        model,
+        dataloader,
+        forward_process,
+        device,
+        cfg,
+        epoch=None,
+        total_epoch=None,
 ):
-    
     losses = []
     model.eval()
+    evaluator = BinaryFilterEvaluator(
+        epoch, total_epoch, "validation"
+    )
     for step, batch in enumerate(dataloader):
 
         batch_size = batch["image"].shape[0]
         batch_imgs = batch["image"].to(device)
         batch_msks = batch["mask"].to(device)
-        
+
         _vl_losses = []
-        for _ in range(vl_runs):
-            t = torch.randint(
-                1, forward_process.forward_schedule.timesteps, (batch_size,), device=device
-            ).long()
-            loss, losses_dict = p_losses(
-                forward_process,
-                model,
-                x_start=batch_msks,
-                g=batch_imgs,
-                t=t,
-                cfg=cfg
-            )
-            _vl_losses.append((loss.item(), losses_dict))
-        
+        t = torch.randint(
+            1, forward_process.forward_schedule.timesteps, (batch_size,), device=device
+        ).long()
+        loss, losses_dict = p_losses(
+            forward_process,
+            model,
+            x_start=batch_msks,
+            g=batch_imgs,
+            t=t,
+            cfg=cfg,
+            evaluator=evaluator
+        )
+        _vl_losses.append((loss.item(), losses_dict))
+        evaluator.epoch_loss += loss.item()
+
         _vl_avg_loss = np.mean([l[0] for l in _vl_losses])
         _vl_avg_losses_dict = {}
-        for k in _vl_losses[0][1].keys():        
+        for k in _vl_losses[0][1].keys():
             v = np.mean([l[1][k] for l in _vl_losses])
-            _vl_avg_losses_dict[k]=v
-    
+            _vl_avg_losses_dict[k] = v
+
         losses.append((_vl_avg_loss, _vl_avg_losses_dict, batch_size))
 
-    return losses
+    return losses, evaluator

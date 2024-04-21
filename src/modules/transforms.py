@@ -106,7 +106,7 @@ class DataAugmentationTransform(object):
         return dns_1
 
 
-    def get_pixel_level_transform(self, config, img_path_list=None):
+    def get_pixel_level_transform(self, config):
         pixel_transform = A.Compose([globals()[t](**p) for t, p in config['levels']['pixel']['transforms'].items()])
         return pixel_transform
         

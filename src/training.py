@@ -155,8 +155,7 @@ else:
 
 
 for epoch in range(start_epoch, epochs):
-
-    tr_losses, model = train(
+    tr_losses, model, tr_evaluator = train(
         model,
         tr_dataloader,
         forward_process,
@@ -165,17 +164,21 @@ for epoch in range(start_epoch, epochs):
         ema=ema,
         cfg=config,
         extra={"skip_steps": 10, "prefix": f"ep:{epoch+1}/{epochs}"},
-        logger=logger
+        logger=logger,
+        epoch=epoch,
+        total_epoch=epochs,
     )
 
-    vl_losses = validate(
+    vl_losses, va_evaluator = validate(
         ema.ema_model if ema else model,
         vl_dataloader,
         forward_process,
         device,
         cfg=config,
         vl_runs=3,
-        logger=logger
+        logger=logger,
+        epoch=epoch,
+        total_epoch=epochs,
     )
 
     tr_loss = np.mean([l[0] for l in tr_losses])
@@ -185,6 +188,57 @@ for epoch in range(start_epoch, epochs):
         f"Loss/train vs validation/{config['training']['loss_name']}",
         {"Train": tr_loss, "Validation": vl_loss},
         epoch,
+    )
+
+    writer.add_scalars(
+        main_tag=f"Accuracy/train vs validation",
+        tag_scalar_dict={"Train": tr_evaluator.acc, "Validation": va_evaluator.acc},
+        global_step=epoch
+    )
+    writer.add_scalars(
+        main_tag=f"Sensitivity (Recall)/train vs validation",
+        tag_scalar_dict={"Train": tr_evaluator.SE, "Validation": va_evaluator.SE},
+        global_step=epoch
+    )
+    writer.add_scalars(
+        main_tag=f"Specificity/train vs validation",
+        tag_scalar_dict={"Train": tr_evaluator.SP, "Validation": va_evaluator.SP},
+        global_step=epoch
+    )
+    writer.add_scalars(
+        main_tag=f"Precision/train vs validation",
+        tag_scalar_dict={"Train": tr_evaluator.PC, "Validation": va_evaluator.PC},
+        global_step=epoch
+    )
+
+    writer.add_scalars(
+        main_tag=f"F1 Score/train vs validation",
+        tag_scalar_dict={"Train": tr_evaluator.F1, "Validation": va_evaluator.F1},
+        global_step=epoch
+    )
+
+    writer.add_scalars(
+        main_tag=f"Dice Coefficient/train vs validation",
+        tag_scalar_dict={"Train": tr_evaluator.DC, "Validation": va_evaluator.DC},
+        global_step=epoch
+    )
+
+    writer.add_scalars(
+        main_tag=f"Mean Intersection over Union/train vs validation",
+        tag_scalar_dict={"Train": tr_evaluator.MIOU, "Validation": va_evaluator.MIOU},
+        global_step=epoch
+    )
+
+    writer.add_scalars(
+        main_tag=f"Area Under the Curve/train vs validation",
+        tag_scalar_dict={"Train": tr_evaluator.AUC, "Validation": va_evaluator.AUC},
+        global_step=epoch
+    )
+
+    writer.add_scalars(
+        main_tag=f"Average Precision/train vs validation",
+        tag_scalar_dict={"Train": tr_evaluator.AP, "Validation": va_evaluator.AP},
+        global_step=epoch
     )
 
     # ---------- tr losses -------------

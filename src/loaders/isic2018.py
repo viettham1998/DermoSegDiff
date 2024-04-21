@@ -2,26 +2,71 @@ from datasets.isic2018 import ISIC2018DatasetFast
 from torch.utils.data import DataLoader, Subset
 from modules.transforms import DiffusionTransform, DataAugmentationTransform
 import albumentations as A
+from datasets.image_loader.isic_data_loader import ISICImageLoader
 import glob
 
 
-
-def get_isic2018(config, logger=None, verbose=False):
-
+def get_isic(config, logger=None, verbose=False):
     if logger: print = logger.info
 
     INPUT_SIZE = config["dataset"]["input_size"]
     DT = DiffusionTransform((INPUT_SIZE, INPUT_SIZE))
     AUGT = DataAugmentationTransform((INPUT_SIZE, INPUT_SIZE))
-    
-    img_dir = "ISIC2018_Task1-2_Training_Input"
-    msk_dir = "ISIC2018_Task1_Training_GroundTruth"
-    img_path_list = glob.glob(f"{config['dataset']['data_dir']}/{img_dir}/ISIC*.jpg")
-    
-    pixel_level_transform = AUGT.get_pixel_level_transform(config["augmentation"], img_path_list=img_path_list)
+
+    pixel_level_transform = AUGT.get_pixel_level_transform(config["augmentation"])
     spacial_level_transform = AUGT.get_spacial_level_transform(config["augmentation"])
     tr_aug_transform = A.Compose([
-        A.Compose(pixel_level_transform, p=config["augmentation"]["levels"]["pixel"]["p"]), 
+        A.Compose(pixel_level_transform, p=config["augmentation"]["levels"]["pixel"]["p"]),
+        A.Compose(spacial_level_transform, p=config["augmentation"]["levels"]["spacial"]["p"])
+    ], p=config["augmentation"]["p"])
+
+    train_dataset = ISICImageLoader(
+        mode='train',
+        data_dir=config["dataset"]["data_dir"],
+        one_hot=False,
+        image_size=INPUT_SIZE,
+        aug=tr_aug_transform,
+        img_transform=DT.get_forward_transform_img(),
+        msk_transform=DT.get_forward_transform_msk(),
+        gt_format=config["dataset"]["gt_format"],
+        add_boundary_mask=config["dataset"]["add_boundary_mask"],
+        add_boundary_dist=config["dataset"]["add_boundary_dist"],
+    )
+    val_dataset = ISICImageLoader(
+        mode='valid',
+        data_dir=config["dataset"]["data_dir"],
+        one_hot=False,
+        image_size=config["dataset"]["input_size"],
+        # aug_empty=AUGT.get_val_test(),
+        # transform=AUGT.get_spatial_transform(),
+        img_transform=DT.get_forward_transform_img(),
+        msk_transform=DT.get_forward_transform_msk(),
+        add_boundary_mask=config["dataset"]["add_boundary_mask"],
+        add_boundary_dist=config["dataset"]["add_boundary_dist"],
+        logger=logger,
+        data_scale=config["dataset"]["data_scale"]
+    )
+
+    tr_dataloader = DataLoader(train_dataset, **config["data_loader"]["train"])
+    vl_dataloader = DataLoader(val_dataset, **config["data_loader"]["validation"])
+
+    return {
+        "tr": {"dataset": train_dataset, "loader": tr_dataloader},
+        "vl": {"dataset": val_dataset, "loader": vl_dataloader},
+    }
+
+
+def get_isic2018(config, logger=None, verbose=False):
+    if logger: print = logger.info
+
+    INPUT_SIZE = config["dataset"]["input_size"]
+    DT = DiffusionTransform((INPUT_SIZE, INPUT_SIZE))
+    AUGT = DataAugmentationTransform((INPUT_SIZE, INPUT_SIZE))
+
+    pixel_level_transform = AUGT.get_pixel_level_transform(config["augmentation"])
+    spacial_level_transform = AUGT.get_spacial_level_transform(config["augmentation"])
+    tr_aug_transform = A.Compose([
+        A.Compose(pixel_level_transform, p=config["augmentation"]["levels"]["pixel"]["p"]),
         A.Compose(spacial_level_transform, p=config["augmentation"]["levels"]["spacial"]["p"])
     ], p=config["augmentation"]["p"])
 
@@ -94,7 +139,7 @@ def get_isic2018(config, logger=None, verbose=False):
 
     else:
         message = "In the config file, `dataset>class_name` should be in: ['ISIC2018Dataset', 'ISIC2018DatasetFast']"
-        if logger: 
+        if logger:
             logger.exception(message)
         else:
             raise ValueError(message)
@@ -119,7 +164,6 @@ def get_isic2018(config, logger=None, verbose=False):
         "vl": {"dataset": vl_dataset, "loader": vl_dataloader},
         "te": {"dataset": te_dataset, "loader": te_dataloader},
     }
-
 
 # # test and visualize the input data
 # from utils.helper_funcs import show_sbs

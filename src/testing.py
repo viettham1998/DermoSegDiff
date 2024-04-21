@@ -116,7 +116,7 @@ forward_schedule = ForwardSchedule(**config["diffusion"]["schedule"])
 DT = DiffusionTransform((INPUT_SIZE, INPUT_SIZE))
 
 # --------------- Datasets and Dataloaders -----------------
-te_dataloader = get_dataloaders(config, "te")
+te_dataloader = get_dataloaders(config, "vl")
 
 
 Net = globals()[config["model"]["class"]]
@@ -179,6 +179,7 @@ for step, batch in tqdm(
     batch_imgs = batch["image"].to(device)
     batch_msks = batch["mask"].to(device)
     batch_ids = batch["id"]
+    origin_image_name = batch["origin_image_name"]
 
     samples_list, mid_samples_list = [], []
     all_samples_list = []
