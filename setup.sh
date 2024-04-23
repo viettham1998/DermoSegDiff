@@ -1,0 +1,1 @@
+pip install albumentations einops ema_pytorch matplotlib numpy opencv-python opencv_python_headless Pillow PyYAML scikit_image scipy termcolor torch torchvision tqdm
