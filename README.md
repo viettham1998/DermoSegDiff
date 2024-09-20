@@ -31,6 +31,13 @@ Skin lesion segmentation plays a critical role in the early detection and accura
 
 ## How to use
 
+  ### Environment
+- Create new environment 
+    `conda create --name dermo python==3.8`
+- Activate environment
+    `conda activate dermo`
+- Install lib
+    `bash setup.sh`
   ### Requirements
   
   - Ubuntu 16.04 or higher
